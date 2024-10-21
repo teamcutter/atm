@@ -13,7 +13,7 @@ func main() {
 		panic(err)
 	}
 
-	err = s.AcceptAndListen()
+	err = s.AcceptAndHandle()
 	if err != nil {
 		log.Println(err.Error())
 	}

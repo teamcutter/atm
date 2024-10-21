@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/teamcutter/atm/internal/peers"
+	"github.com/teamcutter/atm/internal/proto"
 )
 
 const defaultListenAddr = ":8000"
@@ -18,7 +19,7 @@ type Server struct {
 	Config
 	peers   sync.Map
 	ln      net.Listener
-	msgChan chan []byte
+	msgChan chan peers.Message
 	errChan chan error
 }
 
@@ -30,7 +31,7 @@ func New(cfg Config) *Server {
 	return &Server{
 		Config:  cfg,
 		peers:   sync.Map{},
-		msgChan: make(chan []byte),
+		msgChan: make(chan peers.Message),
 		errChan: make(chan error, 1),
 	}
 }
@@ -47,7 +48,7 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) AcceptAndListen() error {
+func (s *Server) AcceptAndHandle() error {
 	for {
 		conn, err := s.ln.Accept()
 		if err != nil {
@@ -75,9 +76,33 @@ func (s *Server) listen() {
 	for {
 		select {
 		case msg := <-s.msgChan:
-			log.Println(string(msg))
+			err := proto.HandleCommand(string(msg.Content), msg.Sender)
+			if err != nil {
+				log.Println(err.Error())
+				continue
+			}
 		case err := <-s.errChan:
-			log.Println(err.Error())
+			log.Printf("error: %v", err)
 		}
 	}
+}
+
+func (s *Server) Stop() error {
+	if s.ln != nil {
+		if err := s.ln.Close(); err != nil {
+			return err
+		}
+	}
+
+	s.peers.Range(func(key, value interface{}) bool {
+		peer := key.(*peers.Peer)
+		peer.Close()
+		s.peers.Delete(key)
+		return true
+	})
+
+	close(s.msgChan)
+	close(s.errChan)
+
+	return nil
 }

@@ -1,17 +1,25 @@
 package peers
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"sync"
 )
 
-type Peer struct {
-	conn    net.Conn
-	msgChan chan []byte
+type Message struct {
+	Sender  *Peer
+	Content []byte
 }
 
-func New(conn net.Conn, msgChan chan []byte) *Peer {
+type Peer struct {
+	data    sync.Map
+	conn    net.Conn
+	msgChan chan Message
+}
+
+func New(conn net.Conn, msgChan chan Message) *Peer {
 	return &Peer{
 		conn:    conn,
 		msgChan: msgChan,
@@ -29,8 +37,25 @@ func (p *Peer) Listen() error {
 			}
 			return err
 		}
-		msgBuf := make([]byte, n)
-		copy(msgBuf, buf)
-		p.msgChan <- msgBuf
+		p.msgChan <- Message{
+			Sender:  p,
+			Content: buf[:n],
+		}
 	}
+}
+
+func (p *Peer) Close() {
+	p.conn.Close()
+}
+
+func (p *Peer) Set(key string, value string) {
+	p.data.Store(key, value)
+}
+
+func (p *Peer) Get(key string) (string, error) {
+	val, ok := p.data.Load(key)
+	if !ok {
+		return "", errors.New("no record with such key")
+	}
+	return val.(string), nil
 }
