@@ -16,8 +16,10 @@ type Config struct {
 
 type Server struct {
 	Config
-	peers sync.Map
-	ln    net.Listener
+	peers   sync.Map
+	ln      net.Listener
+	msgChan chan []byte
+	errChan chan error
 }
 
 func New(cfg Config) *Server {
@@ -26,8 +28,10 @@ func New(cfg Config) *Server {
 	}
 
 	return &Server{
-		Config: cfg,
-		peers:  sync.Map{},
+		Config:  cfg,
+		peers:   sync.Map{},
+		msgChan: make(chan []byte),
+		errChan: make(chan error, 1),
 	}
 }
 
@@ -37,6 +41,9 @@ func (s *Server) Start() error {
 		return err
 	}
 	s.ln = ln
+
+	go s.listen()
+
 	return nil
 }
 
@@ -51,20 +58,26 @@ func (s *Server) AcceptAndListen() error {
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	peer := peers.New(conn)
+	defer conn.Close()
+
+	peer := peers.New(conn, s.msgChan)
 	s.peers.Store(peer, true)
 	log.Printf("new connection: %s", conn.RemoteAddr())
 
-	errChan := make(chan error, 1)
-
-	go func() {
-		errChan <- peer.Listen()
-	}()
-
-	err := <-errChan
-	if err != nil {
-		log.Println(err.Error())
+	if err := peer.Listen(); err != nil {
+		s.errChan <- err
 		s.peers.Delete(peer)
 		return
+	}
+}
+
+func (s *Server) listen() {
+	for {
+		select {
+		case msg := <-s.msgChan:
+			log.Println(string(msg))
+		case err := <-s.errChan:
+			log.Println(err.Error())
+		}
 	}
 }

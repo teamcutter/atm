@@ -3,24 +3,25 @@ package peers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 )
 
 type Peer struct {
-	conn net.Conn
+	conn    net.Conn
+	msgChan chan []byte
 }
 
-func New(conn net.Conn) *Peer {
+func New(conn net.Conn, msgChan chan []byte) *Peer {
 	return &Peer{
-		conn: conn,
+		conn:    conn,
+		msgChan: msgChan,
 	}
 }
 
 func (p *Peer) Listen() error {
+	buf := make([]byte, 1024)
 	for {
-		msg := make([]byte, 1024)
-		_, err := p.conn.Read(msg)
+		n, err := p.conn.Read(buf)
 		if err != nil {
 			p.conn.Close()
 			if err == io.EOF {
@@ -28,7 +29,8 @@ func (p *Peer) Listen() error {
 			}
 			return err
 		}
-		
-		log.Println(string(msg))
+		msgBuf := make([]byte, n)
+		copy(msgBuf, buf)
+		p.msgChan <- msgBuf
 	}
 }
