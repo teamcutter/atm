@@ -9,7 +9,7 @@ import (
 	"github.com/teamcutter/atm/internal/proto"
 )
 
-const defaultListenAddr = ":8000"
+const defaultListenAddr = ":8001"
 
 type Config struct {
 	ListenAddr string
