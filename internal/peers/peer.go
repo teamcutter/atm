@@ -14,7 +14,7 @@ type Message struct {
 }
 
 type Peer struct {
-	storage    sync.Map
+	storage sync.Map
 	conn    net.Conn
 	msgChan chan Message
 }
@@ -26,7 +26,7 @@ func New(conn net.Conn, msgChan chan Message) *Peer {
 	}
 }
 
-func (p *Peer) Listen() error {
+func (p *Peer) Receive() error {
 	buf := make([]byte, 1024)
 	for {
 		n, err := p.conn.Read(buf)
@@ -42,6 +42,14 @@ func (p *Peer) Listen() error {
 			Content: buf[:n],
 		}
 	}
+}
+
+func (p *Peer) Send(msg string) error {
+	_, err := p.conn.Write([]byte(msg + "\n")) // Send message with a newline delimiter
+	if err != nil {
+		return fmt.Errorf("failed to send message to peer: %w", err)
+	}
+	return nil
 }
 
 func (p *Peer) Close() {

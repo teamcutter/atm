@@ -65,7 +65,7 @@ func (s *Server) handleConn(conn net.Conn) {
 	s.peers.Store(peer, true)
 	log.Printf("new connection: %s", conn.RemoteAddr())
 
-	if err := peer.Listen(); err != nil {
+	if err := peer.Receive(); err != nil {
 		s.errChan <- err
 		s.peers.Delete(peer)
 		return

@@ -2,6 +2,7 @@ package proto
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 
@@ -9,7 +10,7 @@ import (
 )
 
 type Command interface {
-	String() string
+	Execute(peer *peers.Peer) error
 }
 
 type CommandSET struct {
@@ -17,16 +18,27 @@ type CommandSET struct {
 	Value string
 }
 
-func (c *CommandSET) String() string {
-	return "SET"
+func (c *CommandSET) Execute(peer *peers.Peer) error {
+	log.Printf("Executing SET command: key=%s, value=%s", c.Key, c.Value)
+
+	peer.Set(c.Key, c.Value)
+	response := fmt.Sprintf("SET OK: %s = %s\n", c.Key, c.Value)
+	return peer.Send(response)
 }
 
 type CommandGET struct {
 	Key string
 }
 
-func (c *CommandGET) String() string {
-	return "GET"
+func (c *CommandGET) Execute(peer *peers.Peer) error {
+	log.Printf("Executing GET command: key=%s", c.Key)
+
+	val, err := peer.Get(c.Key)
+	if err != nil {
+		return err
+	}
+	response := fmt.Sprintf("VALUE: %s\n", val)
+	return peer.Send(response)
 }
 
 func parseCommand(msg string) (Command, error) {
@@ -54,24 +66,20 @@ func parseCommand(msg string) (Command, error) {
 	}
 }
 
-func HandleCommand(msg string, p *peers.Peer) error {
-	cmd, err := parseCommand(string(msg))
+func HandleCommand(msg string, peer *peers.Peer) error {
+	cmd, err := parseCommand(msg)
 	if err != nil {
+		log.Printf("command parsing error: %v", err)
 		return err
 	}
-	switch c := cmd.(type) {
-	case *CommandSET:
-		log.Printf("SET key: %v, value: %v", c.Key, c.Value)
-		p.Set(c.Key, c.Value)
-	case *CommandGET:
-		val, err := p.Get(c.Key)
-		if err != nil {
-			return err
-		}
-		log.Println(val)
-	default:
-		log.Printf("Unknown command type: %T", cmd)
+
+	// Execute the command
+	err = cmd.Execute(peer)
+	if err != nil {
+		log.Printf("command execution error: %v", err)
+		return err
 	}
 
+	log.Printf("Successfully executed command: %T", cmd)
 	return nil
 }
