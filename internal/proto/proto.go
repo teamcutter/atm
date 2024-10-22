@@ -9,7 +9,7 @@ import (
 )
 
 type Command interface {
-	Name() string
+	String() string
 }
 
 type CommandSET struct {
@@ -17,8 +17,7 @@ type CommandSET struct {
 	Value string
 }
 
-// Implement the Name() method for CommandSET
-func (c *CommandSET) Name() string {
+func (c *CommandSET) String() string {
 	return "SET"
 }
 
@@ -26,7 +25,7 @@ type CommandGET struct {
 	Key string
 }
 
-func (c *CommandGET) Name() string {
+func (c *CommandGET) String() string {
 	return "GET"
 }
 

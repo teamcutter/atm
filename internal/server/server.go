@@ -97,6 +97,7 @@ func (s *Server) Stop() error {
 	s.peers.Range(func(key, value interface{}) bool {
 		peer := key.(*peers.Peer)
 		peer.Close()
+		peer.Clear()
 		s.peers.Delete(key)
 		return true
 	})

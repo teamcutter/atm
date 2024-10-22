@@ -14,7 +14,7 @@ type Message struct {
 }
 
 type Peer struct {
-	data    sync.Map
+	storage    sync.Map
 	conn    net.Conn
 	msgChan chan Message
 }
@@ -49,13 +49,17 @@ func (p *Peer) Close() {
 }
 
 func (p *Peer) Set(key string, value string) {
-	p.data.Store(key, value)
+	p.storage.Store(key, value)
 }
 
 func (p *Peer) Get(key string) (string, error) {
-	val, ok := p.data.Load(key)
+	val, ok := p.storage.Load(key)
 	if !ok {
 		return "", errors.New("no record with such key")
 	}
 	return val.(string), nil
+}
+
+func (p *Peer) Clear() {
+	p.storage.Clear()
 }
