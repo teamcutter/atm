@@ -1,33 +1,31 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/teamcutter/atm/internal/client"
 )
 
 func main() {
-	serverAddr := "localhost:8001"
-
-	c, err := client.New(serverAddr)
+	// Create a new client and connect to the server
+	c, err := client.New("localhost:8001")
 	if err != nil {
-		log.Fatalf("error connecting to server: %v", err)
+		log.Fatalf("failed to connect to server: %v", err)
 	}
 	defer c.Close()
-
-	key := "username"
-	value := "john_doe"
-	err = c.Set(key, value)
+	
+	err = c.Set("greeting", "hello")
 	if err != nil {
-		log.Printf("error sending value: %v", err)
+		log.Printf("error setting value: %v", err)
 	} else {
-		log.Printf("Sent %s = %s\n", key, value)
+		fmt.Println("Value set successfully")
 	}
 
-	retrievedValue, err := c.Get(key)
+	val, err := c.Get("greeting")
 	if err != nil {
 		log.Printf("error getting value: %v", err)
 	} else {
-		log.Printf("Retrieved %s = %s\n", key, retrievedValue)
+		fmt.Printf("Received value: %s\n", val)
 	}
 }
