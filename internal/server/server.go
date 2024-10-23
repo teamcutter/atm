@@ -76,7 +76,7 @@ func (s *Server) listen() {
 	for {
 		select {
 		case msg := <-s.msgChan:
-			err := proto.HandleCommand(string(msg.Content), msg.Sender)
+			err := proto.HandleCommand(string(msg.Cmd), msg.Sender)
 			if err != nil {
 				log.Println(err.Error())
 				continue

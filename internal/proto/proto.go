@@ -72,8 +72,7 @@ func HandleCommand(msg string, peer *peers.Peer) error {
 		log.Printf("command parsing error: %v", err)
 		return err
 	}
-
-	// Execute the command
+	
 	err = cmd.Execute(peer)
 	if err != nil {
 		log.Printf("command execution error: %v", err)

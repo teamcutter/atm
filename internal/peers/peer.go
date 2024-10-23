@@ -1,16 +1,17 @@
 package peers
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"net"
+	"strings"
 	"sync"
 )
 
 type Message struct {
-	Sender  *Peer
-	Content []byte
+	Sender *Peer
+	Cmd    []byte
 }
 
 type Peer struct {
@@ -27,25 +28,22 @@ func New(conn net.Conn, msgChan chan Message) *Peer {
 }
 
 func (p *Peer) Receive() error {
-	buf := make([]byte, 1024)
+	reader := bufio.NewReader(p.conn)
 	for {
-		n, err := p.conn.Read(buf)
+		cmd, err := reader.ReadString('\n')
 		if err != nil {
 			p.conn.Close()
-			if err == io.EOF {
-				return fmt.Errorf("connection %s closed: eof", p.conn.RemoteAddr())
-			}
-			return err
+			return fmt.Errorf("failed to read cmd: %w", err)
 		}
 		p.msgChan <- Message{
-			Sender:  p,
-			Content: buf[:n],
+			Sender: p,
+			Cmd:    []byte(strings.TrimSpace(cmd)),
 		}
 	}
 }
 
 func (p *Peer) Send(msg string) error {
-	_, err := p.conn.Write([]byte(msg + "\n")) // Send message with a newline delimiter
+	_, err := p.conn.Write([]byte(msg + "\n"))
 	if err != nil {
 		return fmt.Errorf("failed to send message to peer: %w", err)
 	}
