@@ -8,7 +8,6 @@ import (
 )
 
 func main() {
-	// Create a new client and connect to the server
 	c, err := client.New("localhost:8001")
 	if err != nil {
 		log.Fatalf("failed to connect to server: %v", err)
