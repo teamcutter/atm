@@ -54,7 +54,7 @@ func (s *Server) Start() error {
 	go func() {
 		if err := s.acceptAndHandle(); err != nil {
 			log.Printf("Error in acceptAndHandle: %v", err)
-			s.stop()
+			s.Stop()
 		}
 	}()
 
@@ -62,7 +62,7 @@ func (s *Server) Start() error {
 
 	<-sigChan
 	log.Println("Stopping server...")
-	return s.stop()
+	return s.Stop()
 }
 
 func (s *Server) acceptAndHandle() error {
@@ -104,7 +104,7 @@ func (s *Server) listen() {
 	}
 }
 
-func (s *Server) stop() error {
+func (s *Server) Stop() error {
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err
