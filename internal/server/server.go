@@ -3,7 +3,10 @@ package server
 import (
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/teamcutter/atm/internal/peers"
 	"github.com/teamcutter/atm/internal/proto"
@@ -43,12 +46,26 @@ func (s *Server) Start() error {
 	}
 	s.ln = ln
 
+	log.Println("Starting server...")
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	
+	go func() {
+		if err := s.acceptAndHandle(); err != nil {
+			log.Printf("Error in acceptAndHandle: %v", err)
+			s.stop()
+		}
+	}()
+
 	go s.listen()
 
-	return nil
+	<-sigChan
+	log.Println("Stopping server...")
+	return s.stop()
 }
 
-func (s *Server) AcceptAndHandle() error {
+func (s *Server) acceptAndHandle() error {
 	for {
 		conn, err := s.ln.Accept()
 		if err != nil {
@@ -87,7 +104,7 @@ func (s *Server) listen() {
 	}
 }
 
-func (s *Server) Stop() error {
+func (s *Server) stop() error {
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err
