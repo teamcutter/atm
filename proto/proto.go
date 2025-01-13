@@ -28,7 +28,7 @@ func (c *CommandSET) Execute(peer *peers.Peer) error {
 }
 
 func (c *CommandSET) String() string {
-	return "CommandSET"
+	return "SET"
 }
 
 type CommandGET struct {
@@ -47,7 +47,7 @@ func (c *CommandGET) Execute(peer *peers.Peer) error {
 }
 
 func (c *CommandGET) String() string {
-	return "CommandGET"
+	return "GET"
 }
 
 func parseCommand(msg string) (Command, error) {
@@ -88,6 +88,6 @@ func HandleCommand(msg string, peer *peers.Peer) error {
 		return err
 	}
 
-	log.Printf("Successfully executed command: %T", cmd.String())
+	log.Printf("Successfully executed command: %s", cmd.String())
 	return nil
 }
