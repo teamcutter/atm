@@ -11,6 +11,7 @@ import (
 
 type Command interface {
 	Execute(peer *peers.Peer) error
+	String() string
 }
 
 type CommandSET struct {
@@ -26,6 +27,10 @@ func (c *CommandSET) Execute(peer *peers.Peer) error {
 	return peer.Send(response)
 }
 
+func (c *CommandSET) String() string {
+	return "CommandSET"
+}
+
 type CommandGET struct {
 	Key string
 }
@@ -39,6 +44,10 @@ func (c *CommandGET) Execute(peer *peers.Peer) error {
 	}
 	response := fmt.Sprintf("VALUE: %s\n", val)
 	return peer.Send(response)
+}
+
+func (c *CommandGET) String() string {
+	return "CommandGET"
 }
 
 func parseCommand(msg string) (Command, error) {
@@ -72,13 +81,13 @@ func HandleCommand(msg string, peer *peers.Peer) error {
 		log.Printf("command parsing error: %v", err)
 		return err
 	}
-	
+
 	err = cmd.Execute(peer)
 	if err != nil {
 		log.Printf("command execution error: %v", err)
 		return err
 	}
 
-	log.Printf("Successfully executed command: %T", cmd)
+	log.Printf("Successfully executed command: %T", cmd.String())
 	return nil
 }
