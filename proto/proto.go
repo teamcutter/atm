@@ -50,6 +50,25 @@ func (c *CommandGET) String() string {
 	return "GET"
 }
 
+type CommandDEL struct {
+	Key string
+}
+
+func (c *CommandDEL) Execute(peer *peers.Peer) error {
+	log.Printf("Executing DEL command: key=%s", c.Key)
+
+	val, err := peer.Delete(c.Key)
+	if err != nil {
+		return err
+	}
+	response := fmt.Sprintf("DEL OK: %s = %s\n", c.Key, val)
+	return peer.Send(response)
+}
+
+func (c *CommandDEL) String() string {
+	return "DEL"
+}
+
 func parseCommand(msg string) (Command, error) {
 	parts := strings.Fields(msg)
 	if len(parts) < 2 {
@@ -69,6 +88,9 @@ func parseCommand(msg string) (Command, error) {
 
 	case "GET":
 		return &CommandGET{Key: key}, nil
+
+	case "DEL":
+		return &CommandDEL{Key: key}, nil
 
 	default:
 		return nil, errors.New("unknown command")

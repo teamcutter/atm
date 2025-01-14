@@ -66,6 +66,16 @@ func (p *Peer) Get(key string) (string, error) {
 	return val.(string), nil
 }
 
+func (p *Peer) Delete(key string) (string, error) {
+	val, ok := p.storage.Load(key)
+	if !ok {
+		return "", errors.New("no record with such key")
+	}
+
+	p.storage.Delete(key)
+	return val.(string), nil
+}
+
 func (p *Peer) Clear() {
 	p.storage.Clear()
 }
