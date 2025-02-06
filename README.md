@@ -1,4 +1,4 @@
-![ATM Machine](https://www.flaticon.com/free-icon/atm-machine_6059866)
+<img src="https://www.flaticon.com/free-icon/atm-machine_6059866" alt="ATM Machine">
 
 # ATM: A Lightweight In-Memory Database
 
