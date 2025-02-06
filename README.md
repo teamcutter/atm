@@ -1,3 +1,5 @@
+![ATM Machine](https://www.flaticon.com/free-icon/atm-machine_6059866)
+
 # ATM: A Lightweight In-Memory Database
 
 **ATM** is a lightweight, high-performance in-memory database written in Go, designed to provide key-value storage similar to Redis. It supports efficient storage and retrieval of data, enabling developers to build fast and scalable applications.
