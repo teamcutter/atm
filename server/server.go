@@ -14,18 +14,21 @@ import (
 
 const defaultListenAddr = ":8001"
 
+// Config holds server configuration options.
 type Config struct {
-	ListenAddr string
+	ListenAddr string // Address on which the server will listen.
 }
 
+// Server represents a TCP server that manages peer connections.
 type Server struct {
 	Config
-	peers   sync.Map
-	ln      net.Listener
-	msgChan chan peers.Message
-	errChan chan error
+	peers   sync.Map       // Thread-safe map to store connected peers.
+	ln      net.Listener   // Network listener for incoming connections.
+	msgChan chan peers.Message // Channel for handling messages from peers.
+	errChan chan error     // Channel for handling server errors.
 }
 
+// New creates and returns a new Server instance with the given configuration.
 func New(cfg Config) *Server {
 	if len(cfg.ListenAddr) == 0 {
 		cfg.ListenAddr = defaultListenAddr
@@ -39,6 +42,7 @@ func New(cfg Config) *Server {
 	}
 }
 
+// Start initializes and runs the server, handling incoming connections.
 func (s *Server) Start() error {
 	ln, err := net.Listen("tcp", s.ListenAddr)
 	if err != nil {
@@ -51,6 +55,7 @@ func (s *Server) Start() error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	
+	// Goroutine to accept and handle incoming connections.
 	go func() {
 		if err := s.acceptAndHandle(); err != nil {
 			log.Printf("Error in acceptAndHandle: %v", err)
@@ -58,13 +63,16 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	// Goroutine to process messages from peers.
 	go s.listen()
 
+	// Wait for termination signal.
 	<-sigChan
 	log.Println("Stopping server...")
 	return s.Stop()
 }
 
+// acceptAndHandle continuously accepts new peer connections.
 func (s *Server) acceptAndHandle() error {
 	for {
 		conn, err := s.ln.Accept()
@@ -75,6 +83,7 @@ func (s *Server) acceptAndHandle() error {
 	}
 }
 
+// handleConn processes a new connection and starts receiving messages.
 func (s *Server) handleConn(conn net.Conn) {
 	defer conn.Close()
 
@@ -89,6 +98,7 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 }
 
+// listen handles incoming messages from peers and processes commands.
 func (s *Server) listen() {
 	for {
 		select {
@@ -107,6 +117,7 @@ func (s *Server) listen() {
 	}
 }
 
+// Stop gracefully shuts down the server and closes all connections.
 func (s *Server) Stop() error {
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
