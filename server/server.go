@@ -93,10 +93,13 @@ func (s *Server) listen() {
 	for {
 		select {
 		case msg := <-s.msgChan:
-			err := proto.HandleCommand(string(msg.Cmd), msg.Sender)
+			response, err := proto.HandleCommand(string(msg.Cmd), msg.Sender)
 			if err != nil {
 				log.Println(err.Error())
 				continue
+			}
+			if err := msg.Sender.Send(response); err != nil {
+				log.Printf("Failed to send response: %v", err)
 			}
 		case err := <-s.errChan:
 			log.Printf("error: %v", err)
