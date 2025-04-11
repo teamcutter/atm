@@ -85,10 +85,10 @@ func (s *Server) authenticate() error {
 	}
 	auth = strings.TrimSpace(auth)
 	expected := fmt.Sprintf("%s:%s", s.login, s.password)
-	log.Printf("Received auth: %q, expected: %q", auth, expected)
+	log.Printf("Received auth: %q", auth)
 	if auth != expected {
 		s.conn.Write([]byte("ERROR: invalid login or password\n"))
-		return fmt.Errorf("invalid auth: got %q, expected %q", auth, expected)
+		return fmt.Errorf("invalid auth: got %q", auth)
 	}
 	_, err = s.conn.Write([]byte("OK\n"))
 	if err != nil {

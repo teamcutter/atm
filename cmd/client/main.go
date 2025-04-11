@@ -38,5 +38,18 @@ func main() {
 		})
 	})
 
+	app.GET("/del/:key", func(ctx echo.Context) error {
+		key := ctx.Param("key")
+
+		value, err := cli.Del(key)
+		if err != nil {
+			log.Println(err)
+		}
+		return ctx.JSON(200, map[string]string{
+			"key": key,
+			"value": value,
+		})
+	})
+
 	log.Fatal(app.Start(":8080"))
 }
