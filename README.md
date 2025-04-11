@@ -27,11 +27,11 @@
 
 2. Build the application:
    ```bash
-   make build
+   go build
     ```
 3. Run the server:
    ```bash
-   ./atm -p 8001 # Replace 8000 with your desired port.
+   ./atm -pass 12345 -login user -p :8001 
     ``` 
 
 ### Usage
@@ -39,23 +39,78 @@
 1. **Start the server**:  
    Run the ATM server as described above.
 
-2. **Interact with the database**:  
-   Use any TCP client (e.g., `netcat` or custom tools) to interact with the server. Example commands:
+2. **Use independent client with desired protocol**
 
-   - **Set a key-value pair**:
-     ```bash
-     SET mykey myvalue
-     ```
+### TCP-Based Protocol Specification
 
-   - **Retrieve a value by key**:
-     ```bash
-     GET mykey
-     ```
+The server already uses a simple TCP-based protocol. Let’s formalize it for distribution:
 
-   - **Delete a key**:
-     ```bash
-     DEL mykey
-     ```
+#### 1. Authentication
 
-3. **Custom Protocol**:  
-   The server communicates using a lightweight, custom protocol for simplicity and efficiency.
+- **Format**:  
+  `login:password\n`  
+  (Plaintext string, terminated by a newline `\n`.)
+
+- **Example**:  
+  `user:12345\n`
+
+- **Response**:
+  - **Success**:  
+    `OK\n`
+  - **Failure**:  
+    `ERROR: <message>\n`  
+    _(e.g., `ERROR: invalid login or password\n`)_
+
+---
+
+#### 2. Commands
+
+- **Format**:  
+  `<header><keyLen><key><valueLen><value>`  
+  (Binary, no separators except for lengths.)
+
+  - `<header>`: 3 bytes (e.g., `SET`, `GET`, `DEL`).
+  - `<keyLen>`: 4 bytes (uint32, big-endian), length of the key in bytes.
+  - `<key>`: Variable-length string (UTF-8 encoded).
+  - `<valueLen>`: 4 bytes (uint32, big-endian), length of the value in bytes (**only for SET**).
+  - `<value>`: Variable-length string (UTF-8 encoded, **only for SET**).
+  - Terminated by `\n`.
+
+#### 3. Examples
+
+- **SET user 1**:
+  - **Hex**:  
+    `53455400000004757365720000000131\n`
+  - **Breakdown**:  
+    `SET (3)` + `00000004 (4)` + `user (4)` + `00000001 (4)` + `1 (1)` + `\n (1)`
+
+- **GET user**:
+  - **Hex**:  
+    `4745540000000475736572\n`
+  - **Breakdown**:  
+    `GET (3)` + `00000004 (4)` + `user (4)` + `\n (1)`
+
+- **DEL user**:
+  - **Hex**:  
+    `44454c0000000475736572\n`
+  - **Breakdown**:  
+    `DEL (3)` + `00000004 (4)` + `user (4)` + `\n (1)`
+
+---
+
+#### 4. Response
+
+- **Success**:  
+  `<command> <key> = <value>\n`  
+  _(e.g., `SET user = 1\n`, `GET user = 1\n`)_
+
+- **Failure**:  
+  `ERROR: <message>\n`  
+  _(e.g., `ERROR: no record with such key\n`)_
+
+---
+
+#### 5. Notes
+
+- All lengths are in **bytes**, not characters.
+- The server expects **binary data** for commands, **not text**, but **responses are human-readable text**.
