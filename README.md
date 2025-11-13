@@ -58,6 +58,17 @@
      ```bash
      DEL mykey
      ```
-
+   
+   You can also use client:
+   - **Simply run:**
+     ``` bash
+     go run cmd/client/main.go
+     ```
+   - **Make http request:**
+     ``` 
+     localhost:8080/set/key/value
+     localhost:8080/get/key
+     localhost:8080/del/key
+     ```   
 3. **Custom Protocol**:  
    The server communicates using a lightweight, custom protocol for simplicity and efficiency.
