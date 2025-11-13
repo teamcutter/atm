@@ -8,4 +8,4 @@ client:
 	go run ./cmd/client/main.go
 
 build:
-	go build -o ./atm
+	go build -o ./bin/atm

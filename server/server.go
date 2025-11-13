@@ -1,129 +1,177 @@
 package server
 
 import (
+	"bufio"
+	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
+	"time"
 
-	"github.com/teamcutter/atm/peers"
 	"github.com/teamcutter/atm/proto"
 )
 
-const defaultListenAddr = ":8001"
-
-type Config struct {
-	ListenAddr string
-}
-
+// Server represents a TCP server that handles a single authenticated connection.
 type Server struct {
-	Config
-	peers   sync.Map
-	ln      net.Listener
-	msgChan chan peers.Message
-	errChan chan error
+	listenAddr string
+	ln         net.Listener
+	conn       net.Conn
+	login      string
+	password   string
+	storage    sync.Map
 }
 
-func New(cfg Config) *Server {
-	if len(cfg.ListenAddr) == 0 {
-		cfg.ListenAddr = defaultListenAddr
-	}
-
+func New(password, login, addr string) *Server {
 	return &Server{
-		Config:  cfg,
-		peers:   sync.Map{},
-		msgChan: make(chan peers.Message),
-		errChan: make(chan error, 1),
+		listenAddr: addr,
+		login:      login,
+		password:   password,
 	}
 }
 
 func (s *Server) Start() error {
-	ln, err := net.Listen("tcp", s.ListenAddr)
+	ln, err := net.Listen("tcp", s.listenAddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to listen on %s: %w", s.listenAddr, err)
 	}
 	s.ln = ln
-
-	log.Println("Starting server...")
+	log.Printf("Server listening on %s", s.listenAddr)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	
-	go func() {
-		if err := s.acceptAndHandle(); err != nil {
-			log.Printf("Error in acceptAndHandle: %v", err)
-			s.Stop()
-		}
-	}()
 
-	go s.listen()
+	conn, err := s.ln.Accept()
+	if err != nil {
+		return fmt.Errorf("failed to accept connection: %w", err)
+	}
+	s.conn = conn
+	log.Printf("Accepted connection from %s", conn.RemoteAddr())
+
+	if err := s.conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		s.conn.Close()
+		return fmt.Errorf("failed to set auth deadline: %w", err)
+	}
+
+	if err := s.authenticate(); err != nil {
+		log.Printf("Authentication failed: %v", err)
+		s.conn.Close()
+		return fmt.Errorf("authentication failed: %w", err)
+	}
+
+	if err := s.conn.SetReadDeadline(time.Time{}); err != nil {
+		s.conn.Close()
+		return fmt.Errorf("failed to reset deadline: %w", err)
+	}
+
+	log.Println("Client authenticated successfully")
+
+	go s.processCommands()
 
 	<-sigChan
 	log.Println("Stopping server...")
 	return s.Stop()
 }
 
-func (s *Server) acceptAndHandle() error {
+func (s *Server) authenticate() error {
+	reader := bufio.NewReader(s.conn)
+	auth, err := reader.ReadString('\n')
+	if err != nil {
+		s.conn.Write([]byte("ERROR: failed to read credentials, please send login:password\n"))
+		return fmt.Errorf("failed to read auth: %w", err)
+	}
+	auth = strings.TrimSpace(auth)
+	expected := fmt.Sprintf("%s:%s", s.login, s.password)
+	log.Printf("Received auth: %q", auth)
+	if auth != expected {
+		s.conn.Write([]byte("ERROR: invalid login or password\n"))
+		return fmt.Errorf("invalid auth: got %q", auth)
+	}
+	_, err = s.conn.Write([]byte("OK\n"))
+	if err != nil {
+		return fmt.Errorf("failed to send OK: %w", err)
+	}
+	return nil
+}
+
+func (s *Server) processCommands() {
+	reader := bufio.NewReader(s.conn)
 	for {
-		conn, err := s.ln.Accept()
+		cmdData, err := reader.ReadBytes('\n')
 		if err != nil {
-			return err
+			log.Printf("Failed to read command: %v", err)
+			s.Stop()
+			return
 		}
-		go s.handleConn(conn)
-	}
-}
+		cmdData = cmdData[:len(cmdData)-1] // Trim newline
+		log.Printf("Received command: %x", cmdData)
 
-func (s *Server) handleConn(conn net.Conn) {
-	defer conn.Close()
+		var cmd proto.Command
+		switch string(cmdData[:3]) { // Check 3-byte header
+		case proto.CommandSet:
+			cmd = &proto.CommandSET{}
+		case proto.CommandGet:
+			cmd = &proto.CommandGET{}
+		case proto.CommandDel:
+			cmd = &proto.CommandDEL{}
+		default:
+			log.Printf("Unknown command header: %s", string(cmdData[:3]))
+			s.conn.Write([]byte("ERROR: unknown command\n"))
+			continue
+		}
 
-	peer := peers.New(conn, s.msgChan)
-	s.peers.Store(peer, true)
-	log.Printf("new connection: %s", conn.RemoteAddr())
+		if err := cmd.Deserialize(cmdData); err != nil {
+			log.Printf("Failed to deserialize command: %v", err)
+			s.conn.Write([]byte(fmt.Sprintf("ERROR: %v\n", err)))
+			continue
+		}
 
-	if err := peer.Receive(); err != nil {
-		s.errChan <- err
-		s.peers.Delete(peer)
-		return
-	}
-}
+		response, err := cmd.Execute(s)
+		if err != nil {
+			log.Printf("Command execution failed: %v", err)
+			s.conn.Write([]byte(fmt.Sprintf("ERROR: %v\n", err)))
+			continue
+		}
 
-func (s *Server) listen() {
-	for {
-		select {
-		case msg := <-s.msgChan:
-			response, err := proto.HandleCommand(string(msg.Cmd), msg.Sender)
-			if err != nil {
-				log.Println(err.Error())
-				continue
-			}
-			if err := msg.Sender.Send(response); err != nil {
-				log.Printf("Failed to send response: %v", err)
-			}
-		case err := <-s.errChan:
-			log.Printf("error: %v", err)
+		log.Printf("Sending response: %s", response)
+		if _, err := s.conn.Write([]byte(response + "\n")); err != nil {
+			log.Printf("Failed to send response: %v", err)
+			s.Stop()
+			return
 		}
 	}
 }
 
 func (s *Server) Stop() error {
-	if s.ln != nil {
-		if err := s.ln.Close(); err != nil {
-			return err
-		}
+	if s.conn != nil {
+		s.conn.Close()
 	}
-
-	s.peers.Range(func(key, value interface{}) bool {
-		peer := key.(*peers.Peer)
-		peer.Close()
-		peer.Clear()
-		s.peers.Delete(key)
-		return true
-	})
-
-	close(s.msgChan)
-	close(s.errChan)
-
+	if s.ln != nil {
+		return s.ln.Close()
+	}
 	return nil
+}
+
+func (s *Server) Set(key, value string) {
+	s.storage.Store(key, value)
+}
+
+func (s *Server) Get(key string) (string, error) {
+	val, ok := s.storage.Load(key)
+	if !ok {
+		return "", fmt.Errorf("no record with such key")
+	}
+	return val.(string), nil
+}
+
+func (s *Server) Delete(key string) (string, error) {
+	val, ok := s.storage.Load(key)
+	if !ok {
+		return "", fmt.Errorf("no record with such key")
+	}
+	s.storage.Delete(key)
+	return val.(string), nil
 }
