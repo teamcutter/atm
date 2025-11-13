@@ -29,11 +29,11 @@
 
 2. Build the application:
    ```bash
-   make build
+   go build
     ```
 3. Run the server:
    ```bash
-   ./atm -p 8001 # Replace 8000 with your desired port.
+   ./atm -pass 12345 -login user -p :8001 
     ``` 
 
 ### Usage
